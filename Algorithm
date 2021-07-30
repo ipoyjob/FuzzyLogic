@@ -1,0 +1,146 @@
+!gdown --id 1BG1r2ZoCh4gq0Pip1f9VuJrGlH0PFDHH
+
+import pandas as pd 
+import matplotlib.pyplot as plt
+import numpy as np
+ 
+df = pd.read_excel('restoran.xlsx')
+ 
+df
+
+# sigmoid membership function
+def beta(x,c,b):
+  return 1/(1+ abs((x-c)/b)**2)
+ 
+def plot_ling(arr,colour,label,min,max):
+  a = np.arange(min,max,0.2)
+  b = beta(a,arr[0],arr[1])
+  plt.plot(a,b,colour,label=label)
+  plt.legend(loc=1)
+
+def plot_all(tabel,min,max):
+   colour = ['r','g','b','c']
+   i=0
+   for element in tabel:
+     plot_ling(tabel[element],colour[i],element,min,max)
+     i = i + 1
+   plt.legend(loc=1)
+   plt.show()
+
+# membership dan batas keanggotaan input
+pelayanan = {
+    'low' : [0,20],
+    'average' : [40,20],
+    'high' : [70,15],
+    'vhigh' : [100,20]
+}
+ 
+makanan = {
+    'bad' : [0,2],
+    'mid' : [5,2],
+    'good': [10,2]
+}
+
+plot_all(makanan,min=0,max=10)
+
+plot_all(pelayanan,min = 0,max = 100)
+
+def fuzzy_ling(x, titik):
+  return beta(x,titik[0],titik[1])
+ 
+def fuzzy_all(x, tabel):
+  result = {}
+ 
+  for element in tabel:
+    result[element] = fuzzy_ling(x, tabel[element])
+ 
+  return result
+ 
+def fuzzyfikasi(x, list_restoran):
+  fuzzyfikasi_result = []
+  for i in range(len(list_restoran)):
+    fuzzyfikasi_result.append(fuzzy_all(x[i], list_restoran[i]))
+ 
+  return fuzzyfikasi_result
+
+# fuzzy rules
+rules = {
+    ('high', 'bad')   : 'reject',
+    ('high', 'mid')   : 'consider',
+    ('high', 'good')  : 'accept',
+    ('average', 'bad')   : 'reject',
+    ('average', 'mid')   : 'consider',
+    ('average', 'good')  : 'consider',
+    ('low', 'bad')  : 'reject',
+    ('low', 'mid')  : 'reject',
+    ('low', 'good') : 'reject',
+    ('vhigh','bad') : 'consider',
+    ('vhigh','mid') : 'accept',
+    ('vhigh','good') : 'accept'
+}
+
+# inferensi
+def inferensi(fuzzyfikasi_result, rules):
+  inferensi_result = {}
+  for l1, v1 in fuzzyfikasi_result[0].items():
+    for l2, v2 in fuzzyfikasi_result[1].items():
+ 
+      r, min_value = (l1, l2), min(v1, v2)
+ 
+      current_value = inferensi_result.get(rules[r], 0)
+      inferensi_result[rules[r]] = max(min_value, current_value)
+  return inferensi_result
+
+# defuzzifikasi sugeno
+def defuzzifikasi(inferensi_result, table):
+  atas, bawah = 0, 0
+ 
+  for element in table:
+    atas += inferensi_result[element] * table[element]
+    bawah += inferensi_result[element]
+ 
+  return atas / bawah
+ 
+set_value = {'accept':100, 'consider':75, 'reject':40}
+
+# plot membership sugeno
+# batas fungsi keanggotaan output
+colors = 'rgb'
+for key, val in set_value.items():
+  plt.plot([val, val], [0,1], colors[0], label = key)
+  colors = colors[1:]
+plt.legend(loc='best')
+
+score = []
+for arr in df.drop('id', axis=1).values:
+  fuzzyfikasi_result = fuzzyfikasi(arr, [pelayanan, makanan])
+  inferensi_result = inferensi(fuzzyfikasi_result, rules)
+  defuzifikasi_result = defuzzifikasi(inferensi_result, set_value)
+  score.append(defuzifikasi_result)
+ 
+df['Score'] = score
+
+sortdf = df.sort_values(by='Score', ascending=False)
+sortdf
+
+top10restoran = sortdf[:10]
+df_restoran_lain = df.drop(top10restoran.index)
+ 
+top10restoran
+
+Download = pd.ExcelWriter('peringkat.xlsx')
+sortdf[:10].to_excel(Download)
+Download.save()
+print('already download')
+
+plt.scatter(top10restoran.pelayanan,
+            top10restoran.makanan,
+            label = 'Restoran Terbaik')
+plt.scatter(df_restoran_lain.pelayanan,
+            df_restoran_lain.makanan,
+            label='Restoran Lain')
+plt.xlabel('Pelayanan')
+plt.ylabel('Makanan')
+plt.title('Scatter plot restoran')
+plt.legend(loc='best')
+plt.show()
